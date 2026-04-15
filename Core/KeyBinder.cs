@@ -3,11 +3,18 @@ using Flink.Config;
 namespace Flink.Core;
 
 /// <summary>
-/// Assigns keyboard bindings, display names, and clean titles to windows.
+/// Assigns and caches keyboard bindings for the lifetime of the session.
+///
+/// Rules:
+/// 1. Configured apps get their fixed first letter (e.g. "windowsterminal" → "t")
+/// 2. Unconfigured apps get the first free letter of their process name
+/// 3. Once a first letter is assigned to a process, it never changes this session
+/// 4. Once a HWND gets a second letter, it never changes this session
+/// 5. Single window → one letter ("t"). Once a second window appears the process
+///    switches to two-letter mode permanently for this session ("tq", "tw" ...)
 /// </summary>
 internal static class KeyBinder
 {
-    // QWERTY rows in order — top row first, then home row, then bottom row
     private static readonly char[] SecondChars = [
         'q','w','e','r','t','y','u','i','o','p',  // top row
         'a','s','d','f','g','h','j','k','l',       // home row
@@ -17,59 +24,88 @@ internal static class KeyBinder
     private static readonly char[] AlphabetOrder =
         "abcdefghijklmnopqrstuvwxyz".ToCharArray();
 
+    // ── Session state ─────────────────────────────────────────────────────────
+
+    // Process name → assigned first letter
+    private static readonly Dictionary<string, char> _processLetter = new();
+
+    // HWND → assigned second-letter index into SecondChars
+    private static readonly Dictionary<IntPtr, int> _hwndIndex = new();
+
+    // Processes that have ever had more than one window — stays two-letter mode
+    private static readonly HashSet<string> _multiWindow = new();
+
+    // First letters already taken (across all processes)
+    private static readonly HashSet<char> _usedLetters = new();
+
+    // Next second-letter index per process
+    private static readonly Dictionary<string, int> _nextIndex = new();
+
+    public static void ClearSession()
+    {
+        _processLetter.Clear();
+        _hwndIndex.Clear();
+        _multiWindow.Clear();
+        _usedLetters.Clear();
+        _nextIndex.Clear();
+    }
+
+    // ── Main entry point ──────────────────────────────────────────────────────
+
     public static void AssignBindings(List<WindowInfo> windows, AppConfig config)
     {
+        // Group by process
         var groups = windows.GroupBy(w => w.ProcessName).ToList();
-        var usedFirstLetters = new HashSet<char>();
-        var assignedGroups = new Dictionary<string, char>();
 
-        // Pass 1: configured bindings first
+        // Pass 1: ensure every process has a first letter
+        foreach (var group in groups)
+            EnsureProcessLetter(group.Key, config);
+
+        // Pass 2: detect newly multi-window processes
         foreach (var group in groups)
         {
-            if (config.Bindings.TryGetValue(group.Key, out string? letter) && letter.Length == 1)
-            {
-                char c = char.ToLower(letter[0]);
-                if (!usedFirstLetters.Contains(c))
-                {
-                    assignedGroups[group.Key] = c;
-                    usedFirstLetters.Add(c);
-                }
-            }
+            if (group.Count() > 1)
+                _multiWindow.Add(group.Key);
         }
 
-        // Pass 2: auto-assign remaining
+        // Pass 3: assign bindings to each window
         foreach (var group in groups)
         {
-            if (assignedGroups.ContainsKey(group.Key)) continue;
-
-            char firstLetter = AssignFirstLetter(group.Key, usedFirstLetters);
-            assignedGroups[group.Key] = firstLetter;
-            usedFirstLetters.Add(firstLetter);
-        }
-
-        // Pass 3: set binding, display name, and clean title on each window
-        foreach (var group in groups)
-        {
-            char letter = assignedGroups[group.Key];
-            string displayName = ResolveDisplayName(group.Key, config);
+            char letter = _processLetter[group.Key];
+            bool isMulti = _multiWindow.Contains(group.Key);
             var groupWindows = group.ToList();
 
-            if (groupWindows.Count == 1)
+            if (!isMulti && groupWindows.Count == 1)
             {
+                // Single-window mode: just the letter
                 groupWindows[0].Binding = letter.ToString();
             }
             else
             {
-                for (int i = 0; i < groupWindows.Count; i++)
+                // Multi-window mode: assign stable second letters per HWND
+                foreach (var w in groupWindows)
                 {
-                    char second = i < SecondChars.Length
-                        ? SecondChars[i]
-                        : (char)('0' + (i - SecondChars.Length));
-                    groupWindows[i].Binding = $"{letter}{second}";
+                    if (!_hwndIndex.TryGetValue(w.Handle, out int idx))
+                    {
+                        idx = _nextIndex.GetValueOrDefault(group.Key, 0);
+                        _hwndIndex[w.Handle] = idx;
+                        _nextIndex[group.Key] = idx + 1;
+                    }
+
+                    char second = idx < SecondChars.Length
+                        ? SecondChars[idx]
+                        : (char)('0' + (idx - SecondChars.Length));
+
+                    w.Binding = $"{letter}{second}";
                 }
             }
+        }
 
-            foreach (var w in groupWindows)
+        // Pass 4: set display names and clean titles
+        foreach (var group in groups)
+        {
+            string displayName = ResolveDisplayName(group.Key, config);
+            foreach (var w in group)
             {
                 w.DisplayName = displayName;
                 w.CleanTitle = StripAppSuffix(w.Title, displayName);
@@ -77,69 +113,34 @@ internal static class KeyBinder
         }
     }
 
-    /// <summary>
-    /// Returns the configured display name, or auto-capitalizes the process name.
-    /// "windowsterminal" → "Windowsterminal" (if not in config)
-    /// "windowsterminal" → "Terminal" (if configured)
-    /// </summary>
-    private static string ResolveDisplayName(string processName, AppConfig config)
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static void EnsureProcessLetter(string processName, AppConfig config)
     {
-        if (config.Names.TryGetValue(processName, out string? name) && !string.IsNullOrEmpty(name))
-            return name;
+        if (_processLetter.ContainsKey(processName))
+            return;
 
-        // Auto-capitalize: "windowsterminal" → "Windowsterminal"
-        if (string.IsNullOrEmpty(processName)) return processName;
-        return char.ToUpper(processName[0]) + processName[1..];
-    }
+        char letter;
 
-    /// <summary>
-    /// Removes common " - AppName" suffixes that browsers and apps append to window titles.
-    /// "GitHub - Zen Browser" → "GitHub"
-    /// "Settings" → "Settings" (no suffix found, returned as-is)
-    /// </summary>
-    private static string StripAppSuffix(string title, string displayName)
-    {
-        if (string.IsNullOrEmpty(title)) return title;
-
-        // Try common separators: " — ", " - ", " | "
-        foreach (string sep in new[] { " \u2014 ", " - ", " | " })
+        // Configured binding takes priority
+        if (config.Bindings.TryGetValue(processName, out string? configured)
+            && configured.Length == 1
+            && char.IsAsciiLetter(configured[0]))
         {
-            int idx = title.LastIndexOf(sep, StringComparison.OrdinalIgnoreCase);
-            if (idx > 0)
+            letter = char.ToLower(configured[0]);
+            // If somehow already taken (two configured apps with same letter), fall through
+            if (!_usedLetters.Contains(letter))
             {
-                string suffix = title[(idx + sep.Length)..].Trim();
-                // Only strip if the suffix resembles the app name
-                if (IsSimilar(suffix, displayName))
-                    return title[..idx].Trim();
+                _processLetter[processName] = letter;
+                _usedLetters.Add(letter);
+                return;
             }
         }
 
-        return title;
-    }
-
-    /// <summary>
-    /// Loose similarity check: does the suffix look like the app name?
-    /// Handles "Zen Browser" matching "Zen", "Mozilla Firefox" matching "Firefox", etc.
-    /// </summary>
-    private static bool IsSimilar(string suffix, string displayName)
-    {
-        if (string.IsNullOrEmpty(suffix) || string.IsNullOrEmpty(displayName))
-            return false;
-
-        suffix = suffix.ToLowerInvariant();
-        displayName = displayName.ToLowerInvariant();
-
-        // Exact match
-        if (suffix == displayName) return true;
-
-        // Suffix contains a word from the display name (e.g. "Zen" in "Zen Browser")
-        foreach (string word in displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (word.Length >= 3 && suffix.Contains(word))
-                return true;
-        }
-
-        return false;
+        // Auto-assign: first free letter from process name
+        letter = AssignFirstLetter(processName, _usedLetters);
+        _processLetter[processName] = letter;
+        _usedLetters.Add(letter);
     }
 
     private static char AssignFirstLetter(string processName, HashSet<char> used)
@@ -157,5 +158,51 @@ internal static class KeyBinder
         }
 
         return '?';
+    }
+
+    private static string ResolveDisplayName(string processName, AppConfig config)
+    {
+        if (config.Names.TryGetValue(processName, out string? name) && !string.IsNullOrEmpty(name))
+            return name;
+
+        if (string.IsNullOrEmpty(processName)) return processName;
+        return char.ToUpper(processName[0]) + processName[1..];
+    }
+
+    private static string StripAppSuffix(string title, string displayName)
+    {
+        if (string.IsNullOrEmpty(title)) return title;
+
+        foreach (string sep in new[] { " \u2014 ", " - ", " | " })
+        {
+            int idx = title.LastIndexOf(sep, StringComparison.OrdinalIgnoreCase);
+            if (idx > 0)
+            {
+                string suffix = title[(idx + sep.Length)..].Trim();
+                if (IsSimilar(suffix, displayName))
+                    return title[..idx].Trim();
+            }
+        }
+
+        return title;
+    }
+
+    private static bool IsSimilar(string suffix, string displayName)
+    {
+        if (string.IsNullOrEmpty(suffix) || string.IsNullOrEmpty(displayName))
+            return false;
+
+        suffix = suffix.ToLowerInvariant();
+        displayName = displayName.ToLowerInvariant();
+
+        if (suffix == displayName) return true;
+
+        foreach (string word in displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (word.Length >= 3 && suffix.Contains(word))
+                return true;
+        }
+
+        return false;
     }
 }

@@ -13,19 +13,18 @@ Flink replaces the default Alt+Tab switcher with a minimal overlay that assigns 
 - **Single window per app** → one key (`t` for Terminal)
 - **Multiple windows** → two keys, second from the QWERTY row (`tq`, `tw`, `te` ...)
 - **Type to filter** → press the first key, the list narrows to matching windows
+- **Stable bindings** → once assigned, a window keeps its key for the entire session
 - **Configurable** → pin any app to any letter, set display names
 
 ---
 
 ## Install
 
-> Requires Windows 10/11 and [.NET 9 Runtime](https://dotnet.microsoft.com/download/dotnet/9).
-
-1. Download the latest `Flink.exe` from [Releases](../../releases)
-2. Run it — Flink appears in the system tray
+1. Download **`Flink-Setup.exe`** from [Releases](../../releases)
+2. Run the installer — no admin rights required
 3. Press **Alt+Tab** to open the switcher
 
-To add Flink to autostart: right-click the tray icon → **Autostart**.
+No .NET Runtime required. The installer sets up a Start Menu entry and an optional autostart.
 
 ---
 
@@ -35,7 +34,8 @@ To add Flink to autostart: right-click the tray icon → **Autostart**.
 |---|---|
 | Open switcher | `Alt+Tab` |
 | Switch to window | Type the shown key(s) |
-| Dismiss | `Esc` |
+| Back to full list | `Esc` |
+| Dismiss | `Esc` (again) |
 
 ### Multi-window apps
 
@@ -53,7 +53,7 @@ te  →  Terminal — logs
 
 ## Configuration
 
-Config is stored at `~/.flink/flink.json` and is created automatically on first run.
+Config is created automatically on first run at `~/.flink/flink.json`.
 
 ```json
 {
@@ -96,21 +96,21 @@ Config is stored at `~/.flink/flink.json` and is created automatically on first 
 ## Building from source
 
 ```
-git clone https://github.com/you/flink
-cd flink
+git clone https://github.com/t1mmyP/Flink
+cd Flink
 dotnet build
 dotnet run
 ```
 
 Requires [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9).
 
-### Single-file release build
+### Build installer locally
 
 ```
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+powershell -ExecutionPolicy Bypass -File build-installer.ps1
 ```
 
-Output: `bin/Release/net9.0-windows/win-x64/publish/Flink.exe`
+Requires [Inno Setup 6](https://jrsoftware.org/isdl.php). The script builds the release and compiles the installer in one step.
 
 ---
 

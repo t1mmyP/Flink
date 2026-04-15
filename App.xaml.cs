@@ -87,15 +87,11 @@ public partial class App : System.Windows.Application
             Visible = true,
         };
 
-        // Try to load icon, fall back to default
+        // Extract icon directly from our own exe — works in single-file deploys
         try
         {
-            string iconPath = System.IO.Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory, "Assets", "flink.ico");
-            if (System.IO.File.Exists(iconPath))
-                _trayIcon.Icon = new Icon(iconPath);
-            else
-                _trayIcon.Icon = SystemIcons.Application;
+            string exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
+            _trayIcon.Icon = Icon.ExtractAssociatedIcon(exePath) ?? SystemIcons.Application;
         }
         catch
         {
