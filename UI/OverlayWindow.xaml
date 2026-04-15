@@ -112,13 +112,13 @@
 
                                     <!-- App name + window title -->
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ProcessName}"
+                                        <TextBlock Text="{Binding DisplayName}"
                                                    FontFamily="Segoe UI Variable, Segoe UI"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
                                                    TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding Title}"
+                                        <TextBlock Text="{Binding CleanTitle}"
                                                    FontFamily="Segoe UI Variable, Segoe UI"
                                                    FontSize="11"
                                                    Foreground="{StaticResource TextSecondaryBrush}"

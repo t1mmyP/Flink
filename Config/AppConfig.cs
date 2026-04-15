@@ -4,9 +4,16 @@ public sealed class AppConfig
 {
     /// <summary>
     /// Maps process name (lowercase) to a fixed first letter.
-    /// Example: { "windowsterminal": "t", "chrome": "b" }
+    /// Example: { "windowsterminal": "t", "zen": "z" }
     /// </summary>
     public Dictionary<string, string> Bindings { get; set; } = new();
+
+    /// <summary>
+    /// Maps process name (lowercase) to a human-readable display name.
+    /// Example: { "windowsterminal": "Terminal", "zen": "Zen Browser" }
+    /// If not set, the process name is auto-capitalized.
+    /// </summary>
+    public Dictionary<string, string> Names { get; set; } = new();
 
     /// <summary>
     /// When true, the overlay appears centered on the monitor where the mouse cursor is.

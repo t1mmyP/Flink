@@ -7,9 +7,10 @@ namespace Flink.Config;
 
 internal sealed class ConfigManager
 {
+    // ~/.flink/flink.json
     private static readonly string ConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "Flink", "config.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".flink", "flink.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -77,11 +78,28 @@ internal sealed class ConfigManager
         Bindings = new Dictionary<string, string>
         {
             { "windowsterminal", "t" },
+            { "zen", "z" },
             { "chrome", "b" },
             { "firefox", "f" },
             { "msedge", "e" },
             { "code", "c" },
             { "explorer", "x" },
+        },
+        Names = new Dictionary<string, string>
+        {
+            { "windowsterminal", "Terminal" },
+            { "zen", "Zen Browser" },
+            { "chrome", "Chrome" },
+            { "firefox", "Firefox" },
+            { "msedge", "Edge" },
+            { "code", "VS Code" },
+            { "explorer", "Explorer" },
+            { "slack", "Slack" },
+            { "discord", "Discord" },
+            { "teams", "Teams" },
+            { "outlook", "Outlook" },
+            { "notepad", "Notepad" },
+            { "notepad++", "Notepad++" },
         },
         FollowMouse = false,
         Autostart = false,

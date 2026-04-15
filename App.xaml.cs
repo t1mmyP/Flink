@@ -66,8 +66,10 @@ public partial class App : System.Windows.Application
     {
         Dispatcher.Invoke(() =>
         {
-            _overlay!.HideOverlay();
-            _hook!.SetOverlayVisible(false);
+            _overlay!.HandleEscape();
+            // Only release the hook's overlay-mode when fully closed
+            if (!_overlay.IsVisible)
+                _hook!.SetOverlayVisible(false);
         });
     }
 

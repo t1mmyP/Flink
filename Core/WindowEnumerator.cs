@@ -1,8 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
 
 namespace Flink.Core;
 
@@ -47,17 +43,14 @@ internal static class WindowEnumerator
         if (!NativeMethods.IsWindowVisible(hwnd))
             return false;
 
-        // Must have no parent (top-level)
         if (NativeMethods.GetParent(hwnd) != IntPtr.Zero)
             return false;
 
         long exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
 
-        // Skip tool windows (not in taskbar)
         if ((exStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0)
             return false;
 
-        // Must either have WS_EX_APPWINDOW or no owner
         bool hasAppWindow = (exStyle & NativeMethods.WS_EX_APPWINDOW) != 0;
         IntPtr owner = NativeMethods.GetWindow(hwnd, 4 /* GW_OWNER */);
 
@@ -90,31 +83,6 @@ internal static class WindowEnumerator
         catch
         {
             return ("unknown", string.Empty);
-        }
-    }
-
-    /// <summary>
-    /// Extracts the icon for a window from its executable.
-    /// Returns null if extraction fails.
-    /// </summary>
-    public static BitmapSource? GetWindowIcon(WindowInfo info)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(info.ExecutablePath))
-                return null;
-
-            var icon = System.Drawing.Icon.ExtractAssociatedIcon(info.ExecutablePath);
-            if (icon == null) return null;
-
-            return Imaging.CreateBitmapSourceFromHIcon(
-                icon.Handle,
-                Int32Rect.Empty,
-                BitmapSizeOptions.FromEmptyOptions());
-        }
-        catch
-        {
-            return null;
         }
     }
 }

@@ -53,6 +53,23 @@ public sealed partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Escape: if in a sub-selection, go back to full list.
+    /// If already on full list, close the overlay.
+    /// </summary>
+    public void HandleEscape()
+    {
+        if (!string.IsNullOrEmpty(_typedSequence))
+        {
+            _typedSequence = string.Empty;
+            UpdateFilteredList(string.Empty);
+        }
+        else
+        {
+            HideOverlay();
+        }
+    }
+
+    /// <summary>
     /// Called by KeyboardHook when a letter key is pressed while overlay is visible.
     /// </summary>
     public void HandleKeyPress(char c)
@@ -152,15 +169,14 @@ public sealed partial class OverlayWindow : Window
 
     private async Task LoadIconsAsync(List<WindowInfo> windows)
     {
-        foreach (var w in windows)
+        await Task.Run(() =>
         {
-            var icon = WindowEnumerator.GetWindowIcon(w);
-            if (icon != null)
+            foreach (var w in windows)
             {
-                icon.Freeze(); // Make cross-thread safe
-                w.Icon = icon;
+                // IconCache.Get already freezes the BitmapSource
+                w.Icon = IconCache.Get(w);
             }
-        }
+        });
 
         // Refresh list on UI thread — respect current filter
         await Dispatcher.InvokeAsync(() => UpdateFilteredList(_typedSequence));
