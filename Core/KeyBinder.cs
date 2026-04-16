@@ -135,8 +135,8 @@ internal static class KeyBinder
             && char.IsAsciiLetter(configured[0]))
         {
             letter = char.ToLower(configured[0]);
-            // If somehow already taken (two configured apps with same letter), fall through
-            if (!_usedLetters.Contains(letter))
+            // If somehow already taken by another process (two configured apps with same letter), fall through
+            if (!_processLetter.ContainsValue(letter))
             {
                 _processLetter[processName] = letter;
                 _usedLetters.Add(letter);
