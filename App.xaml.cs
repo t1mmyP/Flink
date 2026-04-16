@@ -41,6 +41,7 @@ public partial class App : System.Windows.Application
         _hook = new KeyboardHook();
         _hook.AltTabPressed += OnAltTabPressed;
         _hook.TabCyclePressed += OnTabCyclePressed;
+        _hook.TabCycleBackPressed += OnTabCycleBackPressed;
         _hook.AltReleased += OnAltReleased;
         _hook.KeyPressed += OnKeyPressed;
         _hook.EscapePressed += OnEscapePressed;
@@ -62,6 +63,11 @@ public partial class App : System.Windows.Application
     private void OnTabCyclePressed()
     {
         Dispatcher.Invoke(() => _overlay!.HandleTabCycle());
+    }
+
+    private void OnTabCycleBackPressed()
+    {
+        Dispatcher.Invoke(() => _overlay!.HandleTabCycleBack());
     }
 
     private void OnAltReleased()

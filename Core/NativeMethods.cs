@@ -13,6 +13,7 @@ internal static class NativeMethods
 
     // Virtual keys
     public const int VK_TAB = 0x09;
+    public const int VK_SHIFT = 0x10;
     public const int VK_ALT = 0x12;
     public const int VK_ESCAPE = 0x1B;
     public const int VK_LMENU = 0xA4;

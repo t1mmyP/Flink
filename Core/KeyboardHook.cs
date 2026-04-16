@@ -13,6 +13,7 @@ internal sealed class KeyboardHook : IDisposable
 
     public event Action? AltTabPressed;
     public event Action? TabCyclePressed;
+    public event Action? TabCycleBackPressed;
     public event Action? AltReleased;
     public event Action<char>? KeyPressed;
     public event Action? EscapePressed;
@@ -55,17 +56,20 @@ internal sealed class KeyboardHook : IDisposable
         bool isKeyDown = wParam == NativeMethods.WM_KEYDOWN || wParam == NativeMethods.WM_SYSKEYDOWN;
         bool isKeyUp = wParam == NativeMethods.WM_KEYUP || wParam == NativeMethods.WM_SYSKEYUP;
 
-        // Intercept Alt+Tab
+        // Intercept Alt+Tab and Alt+Shift+Tab
         if (isKeyDown && kbd.vkCode == NativeMethods.VK_TAB)
         {
             bool altDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_ALT) & 0x8000) != 0;
             if (altDown)
             {
+                bool shiftDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_SHIFT) & 0x8000) != 0;
                 if (_overlayVisible)
                 {
-                    // Second Alt+Tab while overlay open → enter cycling mode
                     _cyclingMode = true;
-                    TabCyclePressed?.Invoke();
+                    if (shiftDown)
+                        TabCycleBackPressed?.Invoke();
+                    else
+                        TabCyclePressed?.Invoke();
                 }
                 else
                 {

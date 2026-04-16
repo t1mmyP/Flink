@@ -81,12 +81,24 @@ public sealed partial class OverlayWindow : Window
     {
         if (_visibleItems.Count == 0) return;
 
-        // Deselect current
         if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
             _visibleItems[_selectedIndex].IsSelected = false;
 
-        // Advance (wrap around)
         _selectedIndex = (_selectedIndex + 1) % _visibleItems.Count;
+        _visibleItems[_selectedIndex].IsSelected = true;
+    }
+
+    /// <summary>
+    /// Cycle selection backward through the list (Alt+Shift+Tab while overlay is open).
+    /// </summary>
+    public void HandleTabCycleBack()
+    {
+        if (_visibleItems.Count == 0) return;
+
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            _visibleItems[_selectedIndex].IsSelected = false;
+
+        _selectedIndex = (_selectedIndex - 1 + _visibleItems.Count) % _visibleItems.Count;
         _visibleItems[_selectedIndex].IsSelected = true;
     }
 
