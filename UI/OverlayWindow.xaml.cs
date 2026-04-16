@@ -12,6 +12,10 @@ public sealed partial class OverlayWindow : Window
     private string _typedSequence = string.Empty;
     private List<WindowInfo> _currentWindows = [];
 
+    // Tab-cycling state
+    private List<WindowInfo> _visibleItems = [];
+    private int _selectedIndex = -1;
+
     public event Action<WindowInfo>? WindowSelected;
 
     public OverlayWindow(AppConfig config)
@@ -26,6 +30,7 @@ public sealed partial class OverlayWindow : Window
     public void ShowOverlay()
     {
         _typedSequence = string.Empty;
+        _selectedIndex = -1;
 
         // Enumerate and bind on the UI thread
         var windows = WindowEnumerator.GetOpenWindows();
@@ -70,10 +75,49 @@ public sealed partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Cycle selection forward through the list (Alt+Tab while overlay is open).
+    /// </summary>
+    public void HandleTabCycle()
+    {
+        if (_visibleItems.Count == 0) return;
+
+        // Deselect current
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            _visibleItems[_selectedIndex].IsSelected = false;
+
+        // Advance (wrap around)
+        _selectedIndex = (_selectedIndex + 1) % _visibleItems.Count;
+        _visibleItems[_selectedIndex].IsSelected = true;
+    }
+
+    /// <summary>
+    /// Alt released — activate the selected window, or just close if nothing selected.
+    /// </summary>
+    public WindowInfo? HandleAltRelease()
+    {
+        WindowInfo? selected = null;
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            selected = _visibleItems[_selectedIndex];
+
+        ClearSelection();
+        HideOverlay();
+        return selected;
+    }
+
+    private void ClearSelection()
+    {
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            _visibleItems[_selectedIndex].IsSelected = false;
+        _selectedIndex = -1;
+    }
+
+    /// <summary>
     /// Called by KeyboardHook when a letter key is pressed while overlay is visible.
     /// </summary>
     public void HandleKeyPress(char c)
     {
+        // Letter input cancels any Tab-cycling selection
+        ClearSelection();
         _typedSequence += c;
 
         // Try exact match
@@ -122,6 +166,8 @@ public sealed partial class OverlayWindow : Window
 
     private void DistributeItems(List<WindowInfo> items)
     {
+        _visibleItems = items;
+
         if (items.Count > _config.MaxAppsPerColumn)
         {
             // Split evenly: left gets the ceiling half

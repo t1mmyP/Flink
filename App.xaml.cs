@@ -40,6 +40,8 @@ public partial class App : System.Windows.Application
         // Install keyboard hook
         _hook = new KeyboardHook();
         _hook.AltTabPressed += OnAltTabPressed;
+        _hook.TabCyclePressed += OnTabCyclePressed;
+        _hook.AltReleased += OnAltReleased;
         _hook.KeyPressed += OnKeyPressed;
         _hook.EscapePressed += OnEscapePressed;
         _hook.Install();
@@ -54,6 +56,22 @@ public partial class App : System.Windows.Application
         {
             _overlay!.ShowOverlay();
             _hook!.SetOverlayVisible(true);
+        });
+    }
+
+    private void OnTabCyclePressed()
+    {
+        Dispatcher.Invoke(() => _overlay!.HandleTabCycle());
+    }
+
+    private void OnAltReleased()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var selected = _overlay!.HandleAltRelease();
+            _hook!.SetOverlayVisible(false);
+            if (selected != null)
+                WindowActivator.Activate(selected);
         });
     }
 
