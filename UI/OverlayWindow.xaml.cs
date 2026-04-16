@@ -33,8 +33,8 @@ public sealed partial class OverlayWindow : Window
 
         // Load icons asynchronously to not block showing
         _currentWindows = windows;
-        WindowList.ItemsSource = windows;
         _typedSequence = string.Empty;
+        DistributeItems(_currentWindows);
 
         // Load icons in background
         Task.Run(() => LoadIconsAsync(windows));
@@ -106,22 +106,43 @@ public sealed partial class OverlayWindow : Window
         double currentLeft = Left;
         double currentTop = Top;
 
-        if (string.IsNullOrEmpty(prefix))
-        {
-            WindowList.ItemsSource = _currentWindows;
-        }
-        else
-        {
-            var filtered = _currentWindows
+        var items = string.IsNullOrEmpty(prefix)
+            ? _currentWindows
+            : _currentWindows
                 .Where(w => w.Binding.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            WindowList.ItemsSource = filtered;
-        }
+
+        DistributeItems(items);
 
         // Re-anchor: keep the window centered on the same spot
         UpdateLayout();
         Left = currentLeft;
         Top = currentTop;
+    }
+
+    private void DistributeItems(List<WindowInfo> items)
+    {
+        if (items.Count > _config.MaxAppsPerColumn)
+        {
+            // Split evenly: left gets the ceiling half
+            int half = (items.Count + 1) / 2;
+            WindowListLeft.ItemsSource = items.Take(half).ToList();
+            WindowListRight.ItemsSource = items.Skip(half).ToList();
+            WindowListRight.Visibility = Visibility.Visible;
+            RightColumnDef.Width = new GridLength(1, GridUnitType.Star);
+            MainPanelBorder.MinWidth = 700;
+            MainPanelBorder.MaxWidth = 1100;
+        }
+        else
+        {
+            // Single column
+            WindowListLeft.ItemsSource = items;
+            WindowListRight.ItemsSource = null;
+            WindowListRight.Visibility = Visibility.Collapsed;
+            RightColumnDef.Width = new GridLength(0);
+            MainPanelBorder.MinWidth = 380;
+            MainPanelBorder.MaxWidth = 560;
+        }
     }
 
     private void PositionWindow()

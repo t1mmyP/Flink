@@ -104,6 +104,7 @@ internal sealed class ConfigManager
         FollowMouse = false,
         Autostart = false,
         Theme = "dark",
+        MaxAppsPerColumn = 10,
     };
 
     public string GetConfigPath() => ConfigPath;

@@ -30,4 +30,10 @@ public sealed class AppConfig
     /// UI theme: "dark" or "light"
     /// </summary>
     public string Theme { get; set; } = "dark";
+
+    /// <summary>
+    /// Maximum number of apps per column before splitting into two columns.
+    /// When the app count exceeds this value, items are distributed evenly across two columns.
+    /// </summary>
+    public int MaxAppsPerColumn { get; set; } = 10;
 }
