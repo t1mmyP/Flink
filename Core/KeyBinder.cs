@@ -57,6 +57,13 @@ internal static class KeyBinder
         // Group by process
         var groups = windows.GroupBy(w => w.ProcessName).ToList();
 
+        // Reserve all configured binding letters so they can't be auto-assigned to other processes
+        foreach (var (_, value) in config.Bindings)
+        {
+            if (value.Length == 1 && char.IsAsciiLetter(value[0]))
+                _usedLetters.Add(char.ToLower(value[0]));
+        }
+
         // Pass 1: ensure every process has a first letter
         foreach (var group in groups)
             EnsureProcessLetter(group.Key, config);
