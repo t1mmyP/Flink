@@ -82,7 +82,8 @@ internal sealed class KeyboardHook : IDisposable
         {
             _cyclingMode = false;
             AltReleased?.Invoke();
-            return (IntPtr)1;
+            // Let the key-up pass through so Windows knows Alt is no longer held
+            return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }
 
         // When overlay is visible, intercept letter keys and Escape
