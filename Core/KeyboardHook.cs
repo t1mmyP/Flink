@@ -12,10 +12,13 @@ internal sealed class KeyboardHook : IDisposable
     private readonly NativeMethods.HookProc _hookProc;
 
     public event Action? AltTabPressed;
+    public event Action? TabCyclePressed;
+    public event Action? AltReleased;
     public event Action<char>? KeyPressed;
     public event Action? EscapePressed;
 
     private bool _overlayVisible = false;
+    private bool _cyclingMode = false;
 
     public KeyboardHook()
     {
@@ -40,6 +43,7 @@ internal sealed class KeyboardHook : IDisposable
     public void SetOverlayVisible(bool visible)
     {
         _overlayVisible = visible;
+        if (!visible) _cyclingMode = false;
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -51,15 +55,34 @@ internal sealed class KeyboardHook : IDisposable
         bool isKeyDown = wParam == NativeMethods.WM_KEYDOWN || wParam == NativeMethods.WM_SYSKEYDOWN;
         bool isKeyUp = wParam == NativeMethods.WM_KEYUP || wParam == NativeMethods.WM_SYSKEYUP;
 
-        // Intercept Alt+Tab (suppress and show overlay)
+        // Intercept Alt+Tab
         if (isKeyDown && kbd.vkCode == NativeMethods.VK_TAB)
         {
             bool altDown = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_ALT) & 0x8000) != 0;
             if (altDown)
             {
-                AltTabPressed?.Invoke();
+                if (_overlayVisible)
+                {
+                    // Second Alt+Tab while overlay open → enter cycling mode
+                    _cyclingMode = true;
+                    TabCyclePressed?.Invoke();
+                }
+                else
+                {
+                    // First Alt+Tab → just open the overlay
+                    AltTabPressed?.Invoke();
+                }
                 return (IntPtr)1; // Suppress
             }
+        }
+
+        // Detect Alt key release — only relevant in cycling mode
+        if (_cyclingMode && isKeyUp &&
+            (kbd.vkCode == NativeMethods.VK_LMENU || kbd.vkCode == NativeMethods.VK_RMENU))
+        {
+            _cyclingMode = false;
+            AltReleased?.Invoke();
+            return (IntPtr)1;
         }
 
         // When overlay is visible, intercept letter keys and Escape

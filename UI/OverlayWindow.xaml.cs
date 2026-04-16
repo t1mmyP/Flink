@@ -12,6 +12,10 @@ public sealed partial class OverlayWindow : Window
     private string _typedSequence = string.Empty;
     private List<WindowInfo> _currentWindows = [];
 
+    // Tab-cycling state
+    private List<WindowInfo> _visibleItems = [];
+    private int _selectedIndex = -1;
+
     public event Action<WindowInfo>? WindowSelected;
 
     public OverlayWindow(AppConfig config)
@@ -26,6 +30,7 @@ public sealed partial class OverlayWindow : Window
     public void ShowOverlay()
     {
         _typedSequence = string.Empty;
+        _selectedIndex = -1;
 
         // Enumerate and bind on the UI thread
         var windows = WindowEnumerator.GetOpenWindows();
@@ -33,8 +38,8 @@ public sealed partial class OverlayWindow : Window
 
         // Load icons asynchronously to not block showing
         _currentWindows = windows;
-        WindowList.ItemsSource = windows;
         _typedSequence = string.Empty;
+        DistributeItems(_currentWindows);
 
         // Load icons in background
         Task.Run(() => LoadIconsAsync(windows));
@@ -70,10 +75,49 @@ public sealed partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Cycle selection forward through the list (Alt+Tab while overlay is open).
+    /// </summary>
+    public void HandleTabCycle()
+    {
+        if (_visibleItems.Count == 0) return;
+
+        // Deselect current
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            _visibleItems[_selectedIndex].IsSelected = false;
+
+        // Advance (wrap around)
+        _selectedIndex = (_selectedIndex + 1) % _visibleItems.Count;
+        _visibleItems[_selectedIndex].IsSelected = true;
+    }
+
+    /// <summary>
+    /// Alt released — activate the selected window, or just close if nothing selected.
+    /// </summary>
+    public WindowInfo? HandleAltRelease()
+    {
+        WindowInfo? selected = null;
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            selected = _visibleItems[_selectedIndex];
+
+        ClearSelection();
+        HideOverlay();
+        return selected;
+    }
+
+    private void ClearSelection()
+    {
+        if (_selectedIndex >= 0 && _selectedIndex < _visibleItems.Count)
+            _visibleItems[_selectedIndex].IsSelected = false;
+        _selectedIndex = -1;
+    }
+
+    /// <summary>
     /// Called by KeyboardHook when a letter key is pressed while overlay is visible.
     /// </summary>
     public void HandleKeyPress(char c)
     {
+        // Letter input cancels any Tab-cycling selection
+        ClearSelection();
         _typedSequence += c;
 
         // Try exact match
@@ -106,22 +150,45 @@ public sealed partial class OverlayWindow : Window
         double currentLeft = Left;
         double currentTop = Top;
 
-        if (string.IsNullOrEmpty(prefix))
-        {
-            WindowList.ItemsSource = _currentWindows;
-        }
-        else
-        {
-            var filtered = _currentWindows
+        var items = string.IsNullOrEmpty(prefix)
+            ? _currentWindows
+            : _currentWindows
                 .Where(w => w.Binding.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            WindowList.ItemsSource = filtered;
-        }
+
+        DistributeItems(items);
 
         // Re-anchor: keep the window centered on the same spot
         UpdateLayout();
         Left = currentLeft;
         Top = currentTop;
+    }
+
+    private void DistributeItems(List<WindowInfo> items)
+    {
+        _visibleItems = items;
+
+        if (items.Count > _config.MaxAppsPerColumn)
+        {
+            // Split evenly: left gets the ceiling half
+            int half = (items.Count + 1) / 2;
+            WindowListLeft.ItemsSource = items.Take(half).ToList();
+            WindowListRight.ItemsSource = items.Skip(half).ToList();
+            WindowListRight.Visibility = Visibility.Visible;
+            RightColumnDef.Width = new GridLength(1, GridUnitType.Star);
+            MainPanelBorder.MinWidth = 700;
+            MainPanelBorder.MaxWidth = 1100;
+        }
+        else
+        {
+            // Single column
+            WindowListLeft.ItemsSource = items;
+            WindowListRight.ItemsSource = null;
+            WindowListRight.Visibility = Visibility.Collapsed;
+            RightColumnDef.Width = new GridLength(0);
+            MainPanelBorder.MinWidth = 380;
+            MainPanelBorder.MaxWidth = 560;
+        }
     }
 
     private void PositionWindow()

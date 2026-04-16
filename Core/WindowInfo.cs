@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows.Media.Imaging;
 
 namespace Flink.Core;
@@ -5,7 +6,7 @@ namespace Flink.Core;
 /// <summary>
 /// Represents a single open window.
 /// </summary>
-public sealed class WindowInfo
+public sealed class WindowInfo : INotifyPropertyChanged
 {
     public IntPtr Handle { get; init; }
     public string Title { get; init; } = string.Empty;
@@ -31,4 +32,19 @@ public sealed class WindowInfo
 
     /// <summary>App icon, loaded lazily</summary>
     public BitmapSource? Icon { get; set; }
+
+    private bool _isSelected;
+    /// <summary>Whether this item is currently highlighted via Alt+Tab cycling.</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected == value) return;
+            _isSelected = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
