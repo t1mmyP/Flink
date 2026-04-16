@@ -68,11 +68,13 @@ internal static class KeyBinder
         foreach (var group in groups)
             EnsureProcessLetter(group.Key, config);
 
-        // Pass 2: detect newly multi-window processes
+        // Pass 2: update multi-window state (enter when >1, leave when back to 1)
         foreach (var group in groups)
         {
             if (group.Count() > 1)
                 _multiWindow.Add(group.Key);
+            else
+                _multiWindow.Remove(group.Key);
         }
 
         // Pass 3: assign bindings to each window
